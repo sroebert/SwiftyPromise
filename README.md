@@ -3,7 +3,7 @@ A simple promise framework for Swift.
 
 This small library implements thread safe promises for Swift. It allows to create promises and fulfill or reject them asynchronously. Promises can be chained using the `then` method. Furthermore it has support for cancelling a promise chain.
 
-# Example Usage
+# Usage
 
 ```swift
 let promise: Promise<String> = Promise { (_, fulfill, reject) in
@@ -34,3 +34,11 @@ promise.then { (string) -> AnyObject in
     print("Could not parse json: \(error)")
 }
 ```
+
+# Licence
+
+MIT
+
+# Author
+
+[@sroebert](https://github.com/sroebert)
