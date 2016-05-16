@@ -26,6 +26,9 @@ public enum PromiseStatus<Value> {
  The default error type for `Promise<Value>`.
  */
 public enum PromiseError : ErrorType {
+    /// Generic error which is used by default if the promise is rejected by passing `nil`.
+    case Generic
+    
     /// Indicating that the promise was cancelled.
     case Cancelled
 }
@@ -299,8 +302,8 @@ public class Promise<Value> : PromiseBase {
      
      This method does nothing if the promise was already fulfilled or rejected.
      */
-    private func reject(error: ErrorType) {
-        status = .Rejected(error)
+    private func reject(error: ErrorType? = nil) {
+        status = .Rejected(error ?? PromiseError.Generic)
     }
     
     // MARK: - Callbacks
