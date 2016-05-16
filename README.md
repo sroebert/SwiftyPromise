@@ -37,12 +37,31 @@ promise.then { (string) -> AnyObject in
 
 ## Installation
 
-*SwiftyPromise* is available through [CocoaPods](http://cocoapods.org). To install
-it, simply add the following line to your Podfile:
+Using [CocoaPods](https://cocoapods.org/):
 
 ```ruby
-pod "SwiftyPromise"
+use_frameworks!
+pod 'SwiftyPromise'
 ```
+
+Using [Carthage](https://github.com/Carthage/Carthage):
+
+```
+github "sroebert/SwiftyPromise"
+```
+
+Manually:
+
+1. Drag `SwiftyPromise.xcodeproj` to your project in the _Project Navigator_.
+2. Select your project and then your app target. Open the _Build Phases_ panel.
+3. Expand the _Target Dependencies_ group, and add `SwiftyPromise.framework`.
+4. Click on the `+` button at the top left of the panel and select _New Copy Files Phase_. Set _Destination_ to _Frameworks_, and add `SwiftyPromise.framework`.
+5. `import SwiftyPromise` whenever you want to use SwiftyPromise.
+
+## Requirements
+
+- iOS 8.0+, Mac OS X 10.9+, tvOS 9.0+ or watchOS 2.0+
+- Swift 2.0
 
 ## Author
 
@@ -50,4 +69,4 @@ Steven Roebert ([@sroebert](https://github.com/sroebert))
 
 ## License
 
-*SwiftyPromise* is available under the MIT license.
+SwiftyPromise is available under the MIT license.
