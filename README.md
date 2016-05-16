@@ -3,7 +3,7 @@ A simple promise framework for Swift.
 
 This small library implements thread safe promises for Swift. It allows to create promises and fulfill or reject them asynchronously. Promises can be chained using the `then` method. Furthermore it has support for cancelling a promise chain.
 
-# Usage
+## Usage
 
 ```swift
 let promise: Promise<String> = Promise { (_, fulfill, reject) in
@@ -35,10 +35,19 @@ promise.then { (string) -> AnyObject in
 }
 ```
 
-# Licence
+## Installation
 
-MIT
+*SwiftyPromise* is available through [CocoaPods](http://cocoapods.org). To install
+it, simply add the following line to your Podfile:
 
-# Author
+```ruby
+pod "SwiftyPromise"
+```
 
-[@sroebert](https://github.com/sroebert)
+## Author
+
+Steven Roebert ([@sroebert](https://github.com/sroebert))
+
+## License
+
+*SwiftyPromise* is available under the MIT license.
