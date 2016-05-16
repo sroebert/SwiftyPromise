@@ -102,8 +102,6 @@ public class PromiseBase {
  It is also possible to chain promises by calling the `then` methods. This way retrieving a certain value can be achieved
  in multiple steps.
  
- A subclass of this is used in the network layer of **Bright**, `HTTPPromise<Data, Task>`.
- 
  - note: This class if fully thread safe.
  
  Example:
@@ -127,7 +125,7 @@ public class Promise<Value> : PromiseBase {
     /**
      Barrier queue used for changing the state of the promise in a thread safe way.
      */
-    private let barrier = dispatch_queue_create("com.icemobile.bright.promise.barrier", DISPATCH_QUEUE_CONCURRENT)
+    private let barrier = dispatch_queue_create("com.roebert.SwiftyPromise.promise.barrier", DISPATCH_QUEUE_CONCURRENT)
     
     /**
      List of `dispatch_semaphore_t` created when calling the `waitUntilCompleted` method.
