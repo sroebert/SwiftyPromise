@@ -5,7 +5,7 @@ This small library implements thread safe promises for Swift. It allows to creat
 
 # Example Usage
 
-```
+```swift
 let promise: Promise<String> = Promise { (_, fulfill, reject) in
     performSomeAsynchronousTaskWithCompletion() { (resultString: String?, error: ErrorType?) in
         if let string = resultString {
