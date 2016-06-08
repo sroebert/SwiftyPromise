@@ -179,6 +179,33 @@ public class Promise<Value> : PromiseBase {
         }
     }
     
+    /**
+     Constructs a pending promise connected to a parent promise.
+     
+     By connecting to a parent promise, cancelling this promise will also result in cancelling the parent.
+     
+     - paramater parent:    The parent promise for the newly constructed promise.
+     - parameter block:     A block which will be executed directly, which can throw an error which will reject the promise.
+     
+     The block takes three arguments:
+     
+     `promise`: The constructed promise.<br/>
+     `fulfill`: The block to fulfill the promise with a value.<br/>
+     `reject`: The block to reject the promise with an error.<br/>
+     */
+    public init<T>(parent: Promise<T>, @noescape _ block: (promise: Promise<Value>, fulfill: (Value) -> Void, reject: (ErrorType) -> Void) throws -> Void) {
+        super.init()
+        
+        do {
+            try block(promise: self, fulfill: fulfill, reject: reject)
+        } catch let error {
+            reject(error)
+        }
+        
+        self.parent = parent
+        parent.nonCancelledChildrenCount += 1
+    }
+    
     // MARK: - Status
     
     /**
@@ -191,14 +218,18 @@ public class Promise<Value> : PromiseBase {
         didSet {
             switch unsafeStatus {
             case .Fulfilled(let result):
-                for callback in succeededCallbacks {
-                    callback(result)
+                for (callback, queue) in succeededCallbacks {
+                    Promise.dispatch(on: queue) {
+                        callback(result)
+                    }
                 }
                 self.detach()
                 
             case .Rejected(let error):
-                for callback in failedCallbacks {
-                    callback(error)
+                for (callback, queue) in failedCallbacks {
+                    Promise.dispatch(on: queue) {
+                        callback(error)
+                    }
                 }
                 self.detach()
                 
@@ -315,7 +346,7 @@ public class Promise<Value> : PromiseBase {
     public typealias SucceededCallback = (Value) -> Void
     
     /// The array containing all success callbacks.
-    private var succeededCallbacks: [SucceededCallback] = []
+    private var succeededCallbacks: [(SucceededCallback, dispatch_queue_t?)] = []
     
     /**
      The alias for the failure callbacks of the promise.
@@ -326,7 +357,7 @@ public class Promise<Value> : PromiseBase {
     public typealias FailedCallback = (ErrorType) -> Void
     
     /// The array containing all failure callbacks.
-    private var failedCallbacks: [FailedCallback] = []
+    private var failedCallbacks: [(FailedCallback, dispatch_queue_t?)] = []
     
     // MARK: - Then
     
@@ -370,22 +401,18 @@ public class Promise<Value> : PromiseBase {
      - returns: A new promise, combining this promise and the one returned from `then`.
      */
     public func then<U>(on queue: dispatch_queue_t? = nil, then: (Value) throws -> Promise<U>) -> Promise<U> {
-        let thenPromise = Promise<U> { thenPromise in
+        return Promise<U>(parent: self) { (_, fulfill, reject) in
             success { value in
                 Promise.dispatch(on: queue) {
                     do {
                         let nextPromise = try then(value)
-                        nextPromise.success(thenPromise.fulfill).failure(thenPromise.reject)
+                        nextPromise.success(fulfill).failure(reject)
                     } catch {
-                        thenPromise.reject(error)
+                        reject(error)
                     }
                 }
-            }.failure(thenPromise.reject)
+            }.failure(reject)
         }
-        
-        thenPromise.parent = self
-        nonCancelledChildrenCount += 1
-        return thenPromise
     }
     
     /**
@@ -401,22 +428,18 @@ public class Promise<Value> : PromiseBase {
      - returns: A new promise, combining this promise and the value returned from `then`.
      */
     public func then<U>(on queue: dispatch_queue_t? = nil, then: (Value) throws -> U) -> Promise<U> {
-        let thenPromise = Promise<U> { thenPromise in
+        return Promise<U>(parent: self) { (_, fulfill, reject) in
             self.success { value in
                 Promise.dispatch(on: queue) {
                     do {
                         let nextValue = try then(value)
-                        thenPromise.fulfill(nextValue)
+                        fulfill(nextValue)
                     } catch {
-                        thenPromise.reject(error)
+                        reject(error)
                     }
                 }
-            }.failure(thenPromise.reject)
+            }.failure(reject)
         }
-        
-        thenPromise.parent = self
-        nonCancelledChildrenCount += 1
-        return thenPromise
     }
     
     // MARK: - Success / Failure
@@ -424,20 +447,36 @@ public class Promise<Value> : PromiseBase {
     /**
      Adds a success callback to the promise.
      
-     This callback will be called once this promise has been fulfilled.
+     This callback will be called once this promise has been fulfilled. The callback will
+     be called on the main thread.
      
      - parameter callback: The callback to call when the promise is fulfilled.
      
      - returns: This promise, allowing to chain multiple callbacks together.
      */
     public func success(callback: SucceededCallback?) -> Self {
-        guard callback != nil else {
+        guard let callback = callback else {
             return self
         }
-        
+        return success(on: dispatch_get_main_queue(), callback: callback)
+    }
+    
+    /**
+     Adds a success callback to the promise.
+     
+     This callback will be called once this promise has been fulfilled.
+     
+     - parameter queue: The queue on which to perform the `callback` block or `nil` to dispatch on the main thread.
+     - parameter callback: The callback to call when the promise is fulfilled.
+     
+     - returns: This promise, allowing to chain multiple callbacks together.
+     */
+    public func success(on queue: dispatch_queue_t?, callback: SucceededCallback) -> Self {
         switch status {
         case .Fulfilled(let result):
-            callback!(result)
+            Promise.dispatch(on: queue) {
+                callback(result)
+            }
             
         case .Rejected:
             break
@@ -446,13 +485,15 @@ public class Promise<Value> : PromiseBase {
             dispatch_barrier_sync(barrier) {
                 switch self.unsafeStatus {
                 case .Fulfilled(let result):
-                    callback!(result)
+                    Promise.dispatch(on: queue) {
+                        callback(result)
+                    }
                     
                 case .Rejected:
                     break
                     
                 case .Pending:
-                    self.succeededCallbacks.append(callback!)
+                    self.succeededCallbacks.append((callback, queue))
                 }
             }
         }
@@ -462,23 +503,39 @@ public class Promise<Value> : PromiseBase {
     /**
      Adds a failure callback to the promise.
      
-     This callback will be called once this promise has been rejected.
+     This callback will be called once this promise has been rejected. The callback will
+     be called on the main thread.
      
      - parameter callback: The callback to call when the promise is rejected.
      
      - returns: This promise, allowing to chain multiple callbacks together.
      */
     public func failure(callback: FailedCallback?) -> Self {
-        guard callback != nil else {
+        guard let callback = callback else {
             return self
         }
-        
+        return failure(on: dispatch_get_main_queue(), callback: callback)
+    }
+    
+    /**
+     Adds a failure callback to the promise.
+     
+     This callback will be called once this promise has been rejected.
+     
+     - parameter queue: The queue on which to perform the `callback` block or `nil` to dispatch on the main thread.
+     - parameter callback: The callback to call when the promise is rejected.
+     
+     - returns: This promise, allowing to chain multiple callbacks together.
+     */
+    public func failure(on queue: dispatch_queue_t, callback: FailedCallback) -> Self {
         switch status {
         case .Fulfilled:
             break
             
         case .Rejected(let error):
-            callback!(error)
+            Promise.dispatch(on: queue) {
+                callback(error)
+            }
             
         case .Pending:
             dispatch_barrier_sync(barrier) {
@@ -487,14 +544,88 @@ public class Promise<Value> : PromiseBase {
                     break
                     
                 case .Rejected(let error):
-                    callback!(error)
+                    Promise.dispatch(on: queue) {
+                        callback(error)
+                    }
                     
                 case .Pending:
-                    self.failedCallbacks.append(callback!)
+                    self.failedCallbacks.append((callback, queue))
                 }
             }
         }
         return self
+    }
+    
+    // MARK: - Recover
+    
+    /**
+     Creates a new promise allowing to recover if the this promise is rejected.
+     
+     By providing a block that returns a new promise with the same expected value type, the
+     resulting promise can still be fulfilled.
+     
+     If the original promise is fulfilled, this new promise will also directly be fulfilled.
+     
+     - parameter queue: The queue on which to perform the `body` block or `nil` to dispatch on the main thread.
+     - parameter body:  A block returning a new promise.
+        
+        This block will be performed when this promise has been rejected. If this promise is fulfilled,
+        the block will not be performed.
+     
+        The block should return a new promise with the same value type as this promise.
+     
+        If the block throws an error, the returned promise will be rejected with the same error.
+     
+     - returns: A new promise, which allows recovery if this promise is rejected.
+     */
+    public func recover(on queue: dispatch_queue_t? = nil, body: (ErrorType) throws -> Promise<Value>) -> Promise<Value> {
+        return Promise<Value>(parent: self) { (_, fulfill, reject) in
+            success(fulfill).failure { error in
+                Promise.dispatch(on: queue) {
+                    do {
+                        let nextPromise = try body(error)
+                        nextPromise.success(fulfill).failure(reject)
+                    } catch {
+                        reject(error)
+                    }
+                }
+            }
+        }
+    }
+    
+    /**
+     Creates a new promise allowing to recover if the this promise is rejected.
+     
+     By providing a block that returns a value of the same type, the resulting promise can
+     still be fulfilled.
+     
+     If the original promise is fulfilled, this new promise will also directly be fulfilled.
+     
+     - parameter queue: The queue on which to perform the `body` block or `nil` to dispatch on the main thread.
+     - parameter body:  A block returning a value with which the returned promise will be fulfilled.
+     
+        This block will be performed when this promise has been rejected. If this promise is fulfilled,
+        the block will not be performed.
+         
+        The block should return a value of the same type as this promise.
+     
+        If the block throws an error, the returned promise will be rejected with the same error.
+     
+     - returns: A new promise, which allows recovery if this promise is rejected.
+     */
+    public func recover(on queue: dispatch_queue_t? = nil, body: (ErrorType) throws -> Value) -> Promise<Value> {
+        return Promise<Value>(parent: self) { (_, fulfill, reject) in
+            success(fulfill).failure { error in
+                Promise.dispatch(on: queue) {
+                    do {
+                        let nextValue = try body(error)
+                        fulfill(nextValue)
+                    } catch {
+                        reject(error)
+                    }
+                }
+            }
+        }
     }
     
     // MARK: - Cancel
@@ -573,6 +704,17 @@ public class Promise<Value> : PromiseBase {
      */
     public func map<U>(converter: (Value) -> U) -> Promise<U> {
         return then { converter($0) }
+    }
+    
+    /**
+     Converts the current promise into an `ActionPromise`.
+     
+     This is a convenience method that calls the `then` method to convert to an `ActionPromise`.
+     
+     - returns: The mapped `ActionPromise`.
+     */
+    public func mapToActionPromise() -> ActionPromise {
+        return then { (_) -> Void in }
     }
     
     /**
