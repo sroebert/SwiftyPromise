@@ -61,7 +61,7 @@ Manually:
 ## Requirements
 
 - iOS 8.0+, Mac OS X 10.9+, tvOS 9.0+ or watchOS 2.0+
-- Swift 2.0
+- Swift 3.0
 
 ## Author
 
