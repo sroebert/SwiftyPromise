@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = "SwiftyPromise"
-  s.version          = "1.0.0"
+  s.version          = "1.3"
   s.summary          = "A simple promise framework for Swift."
 
   s.description      = <<-DESC
@@ -10,7 +10,7 @@ This small library implements thread safe promises for Swift. It allows to creat
   s.homepage         = "https://github.com/sroebert/SwiftyPromise"
   s.license          = { :type => 'MIT' }
   s.author           = { "Steven Roebert" => "steven@roebert.nl" }
-  s.source           = { :git => "https://github.com/sroebert/SwiftyPromise.git", :tag => "v#{s.version}" }
+  s.source           = { :git => "https://github.com/sroebert/SwiftyPromise.git", :tag => "#{s.version}" }
   
   s.requires_arc     = true
   s.source_files     = 'Sources/**/*.{h,swift}'
