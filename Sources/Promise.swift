@@ -271,7 +271,9 @@ open class Promise<Value> : PromiseBase {
                         callback(result)
                     }
                 }
-                detach()
+                barrier.async {
+                    self.detach()
+                }
                 
             case .rejected(let error):
                 for (callback, queue) in failedCallbacks {
@@ -279,7 +281,9 @@ open class Promise<Value> : PromiseBase {
                         callback(error)
                     }
                 }
-                detach()
+                barrier.async {
+                    self.detach()
+                }
                 
             case .pending:
                 break
@@ -332,7 +336,7 @@ open class Promise<Value> : PromiseBase {
     /**
      Indicates whether the promise is completed (i.e. not pending).
      */
-    public final var completed: Bool {
+    public final var isCompleted: Bool {
         switch status {
         case .pending:
             return false
@@ -344,7 +348,7 @@ open class Promise<Value> : PromiseBase {
     /**
      Indicates whether the promise has been fulfilled.
      */
-    public final var fulfilled: Bool {
+    public final var isFulfilled: Bool {
         switch status {
         case .pending, .rejected:
             return false
@@ -365,7 +369,7 @@ open class Promise<Value> : PromiseBase {
     /**
      Indicates whether the promise has been rejected.
      */
-    public final var rejected: Bool {
+    public final var isRejected: Bool {
         switch status {
         case .pending, .fulfilled:
             return false
@@ -762,13 +766,9 @@ open class Promise<Value> : PromiseBase {
      - returns: This promise, allowing to chain multiple callbacks together.
      */
     @discardableResult open func onCancel(_ callback: @escaping () -> Void) -> Self {
-        return self.failure { error in
-            switch error {
-            case PromiseError.cancelled:
+        return self.failure { (error) in
+            if let promiseError = error as? PromiseError, promiseError == .cancelled {
                 callback()
-                
-            default:
-                break
             }
         }
     }
